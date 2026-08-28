@@ -1,4 +1,48 @@
-import { Controller } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Headers,
+    Post,
+} from '@nestjs/common';
+import { AuthService } from './auth.service.js';
+import { SignupDto } from './dto/signup.dto.js';
+import { LoginDto } from './dto/login.dto.js';
 
 @Controller('auth')
-export class AuthController {}
+export class AuthController {
+    constructor(
+        private readonly authService: AuthService,
+    ) { }
+
+    @Post('signup')
+    signup(@Body() signupDto: SignupDto) {
+        return this.authService.signup(signupDto);
+    }
+
+    @Post('login')
+    login(@Body() loginDto: LoginDto) {
+        return this.authService.login(loginDto);
+    }
+
+    @Post('logout')
+    logout(
+        @Headers('authorization') authorization: string,
+    ) {
+        const token = authorization?.replace(
+            'Bearer ',
+            '',
+        );
+
+        return this.authService.logout(token);
+    }
+}
+
+
+
+
+
+
+// import { Controller } from '@nestjs/common';
+
+// @Controller('auth')
+// export class AuthController {}
