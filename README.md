@@ -1,114 +1,265 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Deevi Backend
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+A two-sided marketplace for local services in Nigeria, built on NestJS and Supabase.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Customers post jobs describing exactly what they need. Relevant, verified artisans see
+those jobs in a ranked feed, apply with a price and a timeline, and the customer reviews
+the applications, messages the artisans, and chooses one. The job then runs to completion
+and gets reviewed.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Quick start
 
 ```bash
-$ npm install
+npm install
+cp .env.example .env          # fill in the three SUPABASE_* values
+npm run db:migrate            # needs DATABASE_URL; see "Database" below
+npm run db:verify             # confirms the schema matches what the API expects
+npm run admin:create -- ops@deevi.ng 'StrongPassw0rd' Ada Obi
+npm run start:dev
 ```
 
-## Compile and run the project
+- API: `http://localhost:3001/api/v1`
+- Swagger UI: `http://localhost:3001/api/v1/docs`
+- Integration status: `http://localhost:3001/health`
+
+Only the `SUPABASE_*` values are required. Every other integration falls back to a
+documented mock, so the entire marketplace loop works on a fresh clone with no
+third-party accounts. `GET /health` reports exactly what is live and what is mocked.
+
+---
+
+## The marketplace loop
+
+```
+CUSTOMER  creates a job post (with its own service location)
+          -> publishes it
+ARTISAN   sees it in their ranked feed        GET  /feed/jobs
+          -> applies with a price and timing  POST /applications
+CUSTOMER  reviews the applications            GET  /jobs/{id}/applications
+          -> shortlists, messages artisans    POST /applications/{id}/shortlist
+          -> selects one                      POST /applications/{id}/select
+ARTISAN   accepts the engagement              POST /engagements/{id}/accept
+          -> starts work                      POST /engagements/{id}/start
+          -> flags it finished                POST /engagements/{id}/artisan-complete
+CUSTOMER  confirms completion                 POST /engagements/{id}/complete
+          -> reviews the artisan              POST /reviews
+```
+
+A secondary path lets a customer ask Deevi to recommend artisans directly
+(`GET /matching/artisans`), then invite one to apply. It is an invitation, never an
+assignment: the artisan still applies and the customer still chooses.
+
+---
+
+## Architecture
+
+```
+src/
+  config/          typed runtime configuration; every integration has a mock fallback
+  common/          guards, decorators, DTOs, error vocabulary, pagination
+  supabase/        SupabaseService (clients) + DatabaseService (query/error layer)
+  cache/           Redis when configured, bounded in-process map otherwise
+  queue/           durable background jobs on Postgres (FOR UPDATE SKIP LOCKED)
+  audit/           append-only trail of privileged actions
+  storage/         signed upload/download URLs, per-bucket type and size policy
+  notifications/   in-app source of truth; email/push via swappable providers
+  auth/            Supabase Auth, JWKS token verification, OAuth provider registry
+  catalogue/       service categories, services, sub-services (data, never hardcoded)
+  users/ customers/ artisans/       identity and profiles
+  jobs/            job posts, engagements, and the explicit state machine
+  feed/            the ranked artisan job feed
+  applications/    bids, shortlisting, and the atomic artisan selection
+  matching/        Deevi-recommended artisans
+  messaging/       job-scoped conversations
+  reviews/ reports/ subscriptions/ boosts/ webhooks/ admin/
+supabase/migrations/   idempotent SQL: schema, indexes, functions, triggers, seed
+scripts/               migrate, verify-schema, export-openapi, create-admin
+```
+
+### Decisions worth knowing
+
+**A job owns its location.** The customer profile address is never assumed to be the
+service address: someone living in Igando frequently books work in Obalende. Saved
+locations pre-fill a job post; they never silently override it. A job needs either a
+city or coordinates, from the map picker or the device GPS.
+
+**Address privacy is enforced server-side.** The marketplace feed and the public job view
+expose the neighbourhood and coordinates coarsened to roughly a kilometre. The street
+address and access notes are released only to the artisan who was actually selected. This
+is checked in `JobsService.getOne` and in the feed SQL, not left to the client.
+
+**Selection cannot race.** Choosing an artisan runs entirely inside one Postgres function
+(`deevi_select_artisan_for_job`) that takes a row lock on the job post, re-validates
+ownership and status under that lock, accepts one application, rejects the rest and creates
+the engagement in a single transaction. A partial unique index on
+`job_applications (job_post_id) WHERE status = 'ACCEPTED'` is the storage-layer backstop:
+even a bug in the application code cannot produce two winners.
+
+**Lifecycles are data, not scattered conditionals.** `src/jobs/job-lifecycle.ts` encodes
+every legal transition and which actor may make it. An invalid move is not expressible,
+and the error tells the caller what they can do instead.
+
+**Ranking is deterministic.** No AI. `deevi_feed_jobs_for_artisan` scores in SQL on service
+match, sub-service match, distance from the artisan service areas versus their radius,
+availability, reputation, completed volume, job recency, urgency and competition. Approval
+and travel radius are hard filters, not soft penalties. Boosts apply a bounded multiplier,
+capped at 1.5x by a CHECK constraint, at the very end, so paid visibility can reorder
+relevant results but never manufacture them.
+
+**Authorization is server-side and deny-by-default.** `SupabaseAuthGuard` is registered
+globally, so a new controller cannot be left unauthenticated by omission; routes opt out
+with `@Public()`. Admin routes are gated by capability (`@RequireCapability`), not by a
+role name the client sent.
+
+---
+
+## Database
+
+The schema lives in `supabase/migrations/`. Every file is idempotent and safe to re-run.
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm run db:migrate              # applies pending migrations, tracked in _deevi_migrations
+npm run db:migrate -- --force   # re-applies everything
+npm run db:verify               # introspects the live schema against what the API expects
 ```
 
-## Run tests
+`db:migrate` needs `DATABASE_URL` (Supabase Dashboard, Project Settings, Database,
+Connection string, URI). The API itself never uses it: only this script does, because the
+REST API keys cannot execute DDL. If you would rather not keep the Postgres password in
+`.env`, paste the files into the Supabase SQL editor in filename order instead.
+`npm run db:verify` confirms the result either way.
+
+| Migration | Contents |
+|---|---|
+| `0001_core_extensions_and_users` | extensions, `updated_at` and distance helpers, users, roles, admin/customer/artisan profiles |
+| `0002_catalogue_and_locations` | categories, services, sub-services, saved locations, artisan services/areas/availability/portfolio, applications, verification documents |
+| `0003_jobs_and_applications` | job posts, media, bids, engagements, status history |
+| `0004_messaging_reviews_reports` | conversations, messages, reviews, reports, disputes |
+| `0005_platform_infrastructure` | notifications, subscriptions, boosts, webhook events, audit log, background jobs |
+| `0006_functions_and_triggers` | ranking, matching, atomic selection, counters, maintenance, metrics |
+| `0007_storage_buckets` | five buckets with type and size policy; two of them private |
+| `0008_seed_catalogue` | 23 categories, 65+ services, sub-services, subscription plans |
+
+RLS is enabled with no policies on every table. The API is the only consumer and it
+authenticates with the service role, which bypasses RLS; anonymous PostgREST access is
+therefore denied outright rather than relying on policy correctness.
+
+### Designed for scale
+
+Every list endpoint is paginated with a hard cap of 100 per page; nothing returns an
+unbounded set. High-volume paths select explicit columns rather than `*`, because payload
+size matters a great deal on Nigerian mobile networks. Composite indexes back the feed
+(`service_id, status, published_at`), the applications list (`job_post_id, status`), the
+inbox (`conversation_id, created_at`) and the notification list (`user_id, created_at`),
+with partial indexes on the open-job and unread-notification predicates. Conversations
+use keyset pagination rather than offsets, since chat histories grow without bound and
+offsets drift as new messages arrive. Counters that would otherwise need aggregates at
+read time (application counts, unread counts, rating averages) are maintained by database
+triggers, so they cannot drift from their source.
+
+---
+
+## API conventions
+
+- Authenticate with `Authorization: Bearer <accessToken>` from `POST /auth/login`.
+- List endpoints return `{ items, meta }` where `meta` carries `page`, `limit`, `total`,
+  `totalPages`, `hasNextPage`, `hasPreviousPage`.
+- Errors always return the same shape. Branch on `code`, never on `message`:
+
+```json
+{
+  "statusCode": 409,
+  "code": "ARTISAN_ALREADY_SELECTED",
+  "message": "An artisan has already been selected for this job",
+  "path": "/api/v1/applications/.../select",
+  "timestamp": "2026-01-01T09:00:00.000Z",
+  "requestId": "..."
+}
+```
+
+- All timestamps are ISO 8601 UTC. Money is decimal in the stated `currency` (NGN default).
+- `npm run openapi` writes the full contract to `openapi.json` (156 documented operations).
+
+### Uploads
+
+Clients never hold Supabase credentials. `POST /storage/upload-ticket` validates the
+target bucket, MIME type and size, then returns a short-lived signed URL. The client PUTs
+the bytes directly to storage and submits the returned `path` when creating the job media,
+portfolio item, verification document or message attachment. Object keys are namespaced
+under the owner id, and that ownership is re-checked on every reference.
+
+`verification-documents` and `message-attachments` are private buckets. They are readable
+only through a signed URL minted after an authorization check, and every admin view of a
+verification document is written to the audit log.
+
+---
+
+## Roles and permissions
+
+`CUSTOMER`, `ARTISAN` and `ADMIN` are top-level roles; a single account can hold more than
+one, so an artisan can also post jobs. Admin authority is further split by capability:
+
+| Admin role | Can |
+|---|---|
+| `SUPER_ADMIN` | everything, including creating and revoking other admins |
+| `OPERATIONS` | metrics, users, artisan verification, moderation, catalogue, audit log |
+| `SUPPORT` | read-only across the product, plus report handling |
+| `VERIFICATION` | the artisan queue and verification documents only |
+| `FINANCE` | metrics and subscriptions only |
+
+The matrix lives in `src/common/constants/roles.ts` and is enforced by `RolesGuard`.
+
+Only an `APPROVED` artisan can see the feed or apply to jobs. Approval happens in
+`POST /admin/artisan-applications/{id}/review`, which invalidates the artisan cached
+principal immediately so the change takes effect on their next request.
+
+---
+
+## Background work
+
+The queue is the `background_jobs` table plus `SELECT ... FOR UPDATE SKIP LOCKED`, which
+gives durable, multi-worker-safe queuing with no broker to provision. Producers call
+`QueueService.enqueue`; swapping in a real broker later means reimplementing
+`enqueue`/`claim` only.
+
+Handled today: email delivery, push delivery, webhook processing, review reminders, job
+post expiry, subscription and boost expiry, and metric cache invalidation. Failures retry
+with exponential backoff up to a cap, then park in a `DEAD` state for inspection at
+`GET /admin/ops/queue`. Jobs abandoned by a dead worker are requeued automatically every
+five minutes.
+
+Run the worker in-process (the default) or set `QUEUE_WORKER_ENABLED=false` on the API
+instances and run the same class in a separate process.
+
+---
+
+## Testing
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm test          # 251 unit tests
+npm run test:e2e  # HTTP-level smoke tests (skipped without SUPABASE_URL)
+npm run lint
 ```
+
+The suite concentrates on the rules that are expensive to get wrong: authentication and
+authorization, the admin capability matrix, artisan approval gating, job creation and
+location resolution, address-privacy scoping per viewer, every legal and illegal lifecycle
+transition, the race-sensitive selection path, messaging participant isolation, review
+eligibility and duplicates, report and dispute permissions, subscription quotas, webhook
+signature verification and idempotency, upload validation, and pagination bounds.
+
+---
 
 ## Deployment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run build
+npm run start:prod
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Observability
-
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
-
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observer](https://observer.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Before going live: set `NODE_ENV=production` (this also refuses to load the mock OAuth
+adapter), replace `CORS_ORIGINS=*` with explicit origins, set `REDIS_URL` so rate limiting
+is shared across instances, and rotate the Supabase keys that were committed to this
+repository during development.
