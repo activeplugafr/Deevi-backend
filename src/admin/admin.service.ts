@@ -329,10 +329,12 @@ export class AdminService {
       );
     }
 
-    await this.db.from('artisan_profiles').update({
+    // updateOne, not a bare .update(): a silently swallowed error here would
+    // leave the application APPROVED while the artisan stayed PENDING.
+    await this.db.updateOne('artisan_profiles', { id: artisan.id }, {
       verification_status: dto.decision,
       ...(dto.decision === 'APPROVED' ? { approved_at: now } : {}),
-    }).eq('id', artisan.id);
+    }, 'id, verification_status', 'Artisan profile');
 
     if (dto.decision !== 'UNDER_REVIEW') {
       await this.db.from('verification_documents')
@@ -342,7 +344,7 @@ export class AdminService {
 
     // The artisan's cached principal carries their verification status, and
     // the feed gate reads it, so it must be dropped immediately.
-    await this.authContext.invalidate(artisan.user_id);
+    await this.authContext.invalidateByUserId(artisan.user_id);
     await this.cache.del(CacheKeys.publicArtisan(artisan.id), CacheKeys.adminMetrics());
 
     await this.audit.record(actor, {
@@ -382,13 +384,13 @@ export class AdminService {
       'artisan_profiles', 'id, user_id, verification_status', { id: artisanId }, 'Artisan profile',
     );
 
-    await this.db.from('artisan_profiles').update({
+    await this.db.updateOne('artisan_profiles', { id: artisanId }, {
       verification_status: 'SUSPENDED',
       suspended_at: new Date().toISOString(),
       availability_status: 'UNAVAILABLE',
-    }).eq('id', artisanId);
+    }, 'id, verification_status', 'Artisan profile');
 
-    await this.authContext.invalidate(artisan.user_id);
+    await this.authContext.invalidateByUserId(artisan.user_id);
     await this.cache.del(CacheKeys.publicArtisan(artisanId));
 
     await this.audit.record(actor, {

@@ -3,7 +3,6 @@ import { DatabaseService } from '../supabase/database.service.js';
 import { ArtisansService } from '../artisans/artisans.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { NotificationType } from '../notifications/notification-types.js';
-import { SubscriptionsService } from '../subscriptions/subscriptions.service.js';
 import { compact } from '../catalogue/catalogue-admin.service.js';
 import {
   ConflictError, DomainException, ForbiddenError, NotFoundError,
@@ -34,7 +33,6 @@ export class ApplicationsService {
     private readonly db: DatabaseService,
     private readonly artisans: ArtisansService,
     private readonly notifications: NotificationsService,
-    private readonly subscriptions: SubscriptionsService,
   ) {}
 
   /* ----------------------------- artisan side ---------------------------- */
@@ -84,7 +82,9 @@ export class ApplicationsService {
       throw new ConflictError('ALREADY_APPLIED', 'You have already applied to this job');
     }
 
-    await this.subscriptions.assertCanApply(user, artisanId);
+    // No per-plan application quota in the MVP: subscriptions are dormant, and
+    // an artisan must never be blocked from bidding by a plan they cannot buy.
+    // Abuse is handled by the route rate limiter (30 applications/hour).
 
     const application = await this.db.insertOne('job_applications', {
       job_post_id: dto.jobPostId,

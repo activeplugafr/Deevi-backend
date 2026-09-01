@@ -279,14 +279,11 @@ export class AdminController {
     return this.admin.restoreReview(actor, id);
   }
 
-  /* --------------------------- subscriptions --------------------------- */
-
-  @Get('subscriptions')
-  @RequireCapability('subscriptions:read')
-  @ApiOperation({ summary: 'List artisan subscriptions' })
-  listSubscriptions(@Query() query: PaginationQueryDto, @Query('status') status?: string) {
-    return this.admin.listSubscriptions({ page: query.page, limit: query.limit, status });
-  }
+  /*
+   * Subscriptions are dormant in the MVP (see src/config/mvp-scope.ts), so the
+   * admin listing is not registered either -- it could only ever return an
+   * empty page. AdminService.listSubscriptions remains for reactivation.
+   */
 
   /* ------------------------------ the team ----------------------------- */
 

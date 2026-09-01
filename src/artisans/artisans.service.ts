@@ -513,9 +513,8 @@ export class ArtisansService {
       .is('application_id', null)
       .is('deleted_at', null);
 
-    await this.db.from('artisan_profiles')
-      .update({ verification_status: 'PENDING' })
-      .eq('id', artisanId);
+    await this.db.updateOne('artisan_profiles', { id: artisanId },
+      { verification_status: 'PENDING' }, 'id, verification_status', 'Artisan profile');
 
     await this.notifications.notify({
       userId: user.id,

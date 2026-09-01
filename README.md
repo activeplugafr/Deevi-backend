@@ -53,6 +53,49 @@ assignment: the artisan still applies and the customer still chooses.
 
 ---
 
+## MVP scope
+
+This branch (`deevi-mvp`) is the lean, deployable surface. The domain model is wider
+than the surface on purpose: several features exist in the schema and service layer but
+their controllers are not registered, so they are unreachable over HTTP and absent from
+the OpenAPI contract. Nothing was deleted, so none of it needs a migration to switch on.
+
+| Dormant | What still exists | Reactivate |
+|---|---|---|
+| **Boosts** | `boosts`/`boost_transactions` tables, `BoostsService`, the bounded ranking multiplier in the feed SQL | add `BoostsController` to `BoostsModule` |
+| **Premium subscriptions** | tables, `SubscriptionsService`, payment provider abstraction, Paystack adapter | add `SubscriptionsController` to `SubscriptionsModule` |
+| **Application quotas** | `SubscriptionsService.assertCanApply` | call it from `ApplicationsService.apply` |
+| **Artisan-to-customer reviews** | `reviews.direction` and its unique index are already two-sided | enable the second direction in `ReviewsService` |
+
+`GET /health` lists what is dormant at runtime; `src/config/mvp-scope.ts` is the single
+place that records why, and how to reverse each one.
+
+**Job payments are off-platform and the database enforces it.** `jobs.payment_mode` is
+CHECK-constrained to `OFFLINE`, so Deevi cannot record a payment it did not process.
+There is no checkout, escrow, wallet, payout, commission or invoice anywhere in the
+deployed surface. Nothing claims a payment succeeded.
+
+Deliberately not built: AI matching (ranking is deterministic SQL), external search
+infrastructure (Postgres with `pg_trgm`), live GPS tracking (location is chosen, not
+streamed), and voice/video calling (text and image messaging only).
+
+### Acceptance test
+
+```bash
+npm run start:prod                            # in one terminal
+ACCEPTANCE_ADMIN_EMAIL=ops@deevi.ng ACCEPTANCE_ADMIN_PASSWORD=... npm run acceptance
+```
+
+Drives the entire loop over real HTTP against the live database: customer signup, job
+posting at a location that is not the customer's address, artisan onboarding and
+verification, admin approval, the ranked feed, bidding, messaging, selection under
+concurrency, the job lifecycle, the review, reporting and admin moderation. It also
+asserts the negatives: unapproved artisans cannot see the feed, non-participants cannot
+read conversations, the street address is withheld until selection, and the dormant
+endpoints return 404. **79 checks, all passing.**
+
+---
+
 ## Architecture
 
 ```
@@ -238,8 +281,9 @@ instances and run the same class in a separate process.
 ## Testing
 
 ```bash
-npm test          # 251 unit tests
-npm run test:e2e  # HTTP-level smoke tests (skipped without SUPABASE_URL)
+npm test           # 251 unit tests
+npm run test:e2e   # HTTP-level smoke tests (skipped without SUPABASE_URL)
+npm run acceptance # full marketplace loop against the live database (79 checks)
 npm run lint
 ```
 

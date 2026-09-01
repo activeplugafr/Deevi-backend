@@ -23,7 +23,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:verify": "node scripts/verify-schema.mjs",
     "openapi": "node scripts/export-openapi.mjs",
-    "admin:create": "node scripts/create-admin.mjs"
+    "admin:create": "node scripts/create-admin.mjs",
+    "acceptance": "node scripts/acceptance.mjs"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

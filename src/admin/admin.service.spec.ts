@@ -51,7 +51,13 @@ describe('AdminService', () => {
     it('drops the cached principal so the approval bites immediately', async () => {
       db.one.mockResolvedValueOnce(PENDING_APPLICATION).mockResolvedValueOnce(ARTISAN);
       await service.reviewApplication(makeAdmin('VERIFICATION'), 'app-1', { decision: 'APPROVED' });
-      expect(authContext.invalidate).toHaveBeenCalledWith('artisan-user-1');
+
+      // artisan_profiles.user_id is a Deevi users.id, but the cache is keyed by
+      // the Supabase auth id. Invalidating by the wrong one silently misses,
+      // leaving a freshly approved artisan locked out of their feed until the
+      // TTL expires. Go through the resolving helper, not invalidate() directly.
+      expect(authContext.invalidateByUserId).toHaveBeenCalledWith('artisan-user-1');
+      expect(authContext.invalidate).not.toHaveBeenCalled();
     });
 
     it('demands a reason when rejecting', async () => {

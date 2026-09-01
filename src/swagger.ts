@@ -33,8 +33,15 @@ export const buildSwaggerDocument = (app: INestApplication, config: DeeviConfig)
         '- All timestamps are ISO 8601 UTC. All money is minor-unit-free decimal in `currency` (NGN by default).',
         '',
         '## Payments',
-        'Deevi does not process payment for jobs in this MVP: customers and artisans settle directly.',
-        'The only money flow modelled here is the artisan premium subscription.',
+        'Deevi does not process payment for jobs. Customers and artisans settle directly, and the',
+        'database enforces it: `jobs.payment_mode` is CHECK-constrained to OFFLINE, so no processed',
+        'payment can be recorded. There is no checkout, wallet, escrow, payout or commission.',
+        '',
+        '## MVP scope',
+        'Boosts and premium subscriptions exist in the schema and service layer but their endpoints are',
+        'not registered, so they are absent from this contract by design. Reviews are currently',
+        'customer-to-artisan only, though the model is already two-sided. `GET /health` lists what is',
+        'dormant; `src/config/mvp-scope.ts` documents how each is reactivated.',
       ].join('\n'),
     )
     .setVersion('1.0.0')
@@ -57,8 +64,6 @@ export const buildSwaggerDocument = (app: INestApplication, config: DeeviConfig)
     .addTag('Reviews', 'Post-completion reviews')
     .addTag('Reports', 'Reports and disputes raised by either side')
     .addTag('Notifications', 'In-app notifications and delivery preferences')
-    .addTag('Subscriptions', 'Artisan premium plans and subscriptions')
-    .addTag('Boosts', 'Paid visibility primitives (reserved)')
     .addTag('Storage', 'Signed upload URLs for images, video and documents')
     .addTag('Webhooks', 'Inbound provider webhooks')
     .addTag('Admin', 'Operations, verification, moderation and metrics');

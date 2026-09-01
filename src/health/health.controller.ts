@@ -5,6 +5,7 @@ import { DatabaseService } from '../supabase/database.service.js';
 import { CacheService } from '../cache/cache.service.js';
 import { QueueService } from '../queue/queue.service.js';
 import { loadConfiguration } from '../config/configuration.js';
+import { dormantFeatures } from '../config/mvp-scope.js';
 
 @ApiTags('Health')
 @Controller('health')
@@ -78,6 +79,9 @@ export class HealthController {
         queue: { driver: 'database', workerEnabled: this.queue.workerEnabled, handlers: this.queue.registeredJobNames.length },
       },
       queue: await this.queue.stats().catch(() => ({})),
+      // Domain that exists in the schema but is not exposed over HTTP in the
+      // MVP. See src/config/mvp-scope.ts for how to reactivate each one.
+      dormantFeatures: dormantFeatures(),
     };
   }
 }

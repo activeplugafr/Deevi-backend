@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { ApplicationsService } from './applications.service.js';
 import {
   createMockDb, createMockNotifications, makeArtisan, makeUser, type MockDb,
@@ -20,18 +20,16 @@ const OPEN_POST = {
 describe('ApplicationsService', () => {
   let db: MockDb;
   let notifications: ReturnType<typeof createMockNotifications>;
-  let subscriptions: any;
   let artisans: ArtisansService;
   let service: ApplicationsService;
 
   beforeEach(() => {
     db = createMockDb();
     notifications = createMockNotifications();
-    subscriptions = { assertCanApply: vi.fn().mockResolvedValue(undefined) };
     // The real ArtisansService is used for its approval gate, which is the
     // behaviour under test; its own dependencies are irrelevant here.
     artisans = new ArtisansService(db as any, {} as any, {} as any, {} as any, createMockNotifications() as any);
-    service = new ApplicationsService(db as any, artisans, notifications as any, subscriptions);
+    service = new ApplicationsService(db as any, artisans, notifications as any);
   });
 
   describe('applying to a job', () => {
@@ -76,11 +74,12 @@ describe('ApplicationsService', () => {
       await expect(service.apply(artisan, dto as any)).rejects.toThrow(/already applied/i);
     });
 
-    it('enforces the plan application quota', async () => {
+    it('does not gate bidding behind a subscription plan', async () => {
+      // Subscriptions are dormant in the MVP, so no plan quota may block the
+      // core loop. Rate limiting handles abuse instead.
       db.maybeOne.mockResolvedValueOnce(OPEN_POST).mockResolvedValueOnce(null);
       db.count.mockResolvedValueOnce(1);
-      subscriptions.assertCanApply.mockRejectedValueOnce(new Error('APPLICATION_LIMIT_REACHED'));
-      await expect(service.apply(artisan, dto as any)).rejects.toThrow(/APPLICATION_LIMIT_REACHED/);
+      await expect(service.apply(artisan, dto as any)).resolves.toBeTruthy();
     });
 
     it('creates the bid and tells the customer', async () => {
