@@ -35,10 +35,12 @@ services:
       - key: API_PREFIX
         value: api/v1
 
-      # Swagger is off in production by default. Set to true temporarily if you
-      # need the live contract from the deployed instance.
+      # This instance is the MVP's shared dev/staging surface, so the frontend
+      # can read the live contract from it. Costs ~14MB against ~344MB of
+      # headroom. Flip to "false" at public launch, when the OpenAPI contract
+      # should be consumed from the committed openapi.json instead.
       - key: SWAGGER_ENABLED
-        value: "false"
+        value: "true"
 
       # Lock this down to the deployed frontend origins before launch.
       - key: CORS_ORIGINS
