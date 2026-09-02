@@ -11,6 +11,8 @@ export interface DeeviConfig {
   isProduction: boolean;
   apiPrefix: string;
   corsOrigins: string[];
+  swaggerEnabled: boolean;
+  observabilityEnabled: boolean;
   supabase: {
     url: string;
     publishableKey: string;
@@ -48,6 +50,16 @@ export const loadConfiguration = (): DeeviConfig => {
     isProduction: env === 'production',
     apiPrefix: process.env.API_PREFIX ?? 'api/v1',
     corsOrigins: (process.env.CORS_ORIGINS ?? '*').split(',').map((o) => o.trim()).filter(Boolean),
+
+    // Swagger builds and holds a full OpenAPI document in memory for the life
+    // of the process. That is a fine trade in development and staging, where
+    // the contract is the working surface; in production it is pure overhead
+    // unless someone deliberately asks for it.
+    swaggerEnabled: bool(process.env.SWAGGER_ENABLED, env !== 'production'),
+
+    // The telemetry agent ships traces to a third party. Never run it on
+    // placeholder credentials -- enable it only when real ones are present.
+    observabilityEnabled: Boolean(process.env.OBSERVE_APP_KEY && process.env.OBSERVE_APP_SECRET),
 
     supabase: {
       url: supabaseUrl,

@@ -1,0 +1,66 @@
+# Render service definition for the Deevi API.
+#
+# Without this file Render autodetects a Node service and runs `npm start`,
+# which for a NestJS project is `nest start` -- the DEVELOPMENT command. That
+# invokes the Nest CLI and recompiles TypeScript inside the container, costing
+# ~630MB and ~50s before the port is ever bound. On a 512MB instance that is an
+# OOM kill and a "No open ports detected" scan, which is exactly what happened.
+#
+# The compiled application is what gets run here: ~168MB, listening in ~4s.
+services:
+  - type: web
+    name: deevi-api
+    runtime: node
+    # Free and Starter both cap at 512MB RAM; Starter's advantage is that it
+    # does not spin down. The API measures ~168MB at rest, so Free is genuinely
+    # viable for MVP validation -- see the trade-offs in README "Deployment".
+    plan: free
+    region: frankfurt
+    branch: dev
+    healthCheckPath: /health
+
+    # npm ci for a reproducible install from the lockfile; devDependencies are
+    # required to compile, then pruned so the running instance carries only the
+    # ~55MB of production dependencies rather than ~163MB.
+    buildCommand: npm ci --include=dev && npm run build && npm prune --omit=dev
+
+    # The compiled entrypoint. Never `npm start` here.
+    startCommand: npm run start:prod
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render injects PORT; main.ts binds 0.0.0.0 so the port scan sees it.
+      - key: API_PREFIX
+        value: api/v1
+
+      # Swagger is off in production by default. Set to true temporarily if you
+      # need the live contract from the deployed instance.
+      - key: SWAGGER_ENABLED
+        value: "false"
+
+      # Lock this down to the deployed frontend origins before launch.
+      - key: CORS_ORIGINS
+        value: "*"
+
+      # The background worker runs in-process. That is fine at MVP volume; move
+      # it to its own service (same image, QUEUE_WORKER_ENABLED=false here) when
+      # job throughput justifies it.
+      - key: QUEUE_WORKER_ENABLED
+        value: "true"
+
+      # V8's default heap target is sized from total system memory, which on a
+      # shared host is far more than this instance may actually use. Cap it well
+      # under 512MB so headroom remains for native memory, buffers and code --
+      # V8 then collects earlier instead of the instance being OOM-killed.
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+
+      # Secrets are set in the Render dashboard, never committed.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false

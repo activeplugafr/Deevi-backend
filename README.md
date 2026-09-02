@@ -300,10 +300,49 @@ signature verification and idempotency, upload validation, and pagination bounds
 
 ```bash
 npm run build
-npm run start:prod
+npm run start:prod    # node dist/main -- NEVER `npm start` in production
 ```
 
-Before going live: set `NODE_ENV=production` (this also refuses to load the mock OAuth
-adapter), replace `CORS_ORIGINS=*` with explicit origins, set `REDIS_URL` so rate limiting
-is shared across instances, and rotate the Supabase keys that were committed to this
+`npm start` is `nest start`, the **development** command: it runs the Nest CLI and
+recompiles TypeScript in place. That costs ~630MB and ~50s before a port is bound, which
+on a 512MB instance is an OOM kill. `npm run start:prod` runs the already-compiled
+output: ~168MB, listening in ~4s.
+
+### Render
+
+`render.yaml` is committed, so a Blueprint deploy picks the correct commands up
+automatically. Configuring a service by hand instead, set:
+
+| Setting | Value |
+|---|---|
+| Build command | `npm ci --include=dev && npm run build && npm prune --omit=dev` |
+| Start command | `npm run start:prod` |
+| Health check path | `/health` |
+| `NODE_ENV` | `production` |
+| `NODE_OPTIONS` | `--max-old-space-size=384` |
+| `SWAGGER_ENABLED` | `false` |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` | from the dashboard, never committed |
+
+The build needs devDependencies to compile and then prunes them, so the running instance
+carries ~55MB of production dependencies rather than ~163MB. Render injects `PORT`, and
+`main.ts` binds `0.0.0.0` so the platform's port scan can see the service.
+
+**Render Free is sufficient for the MVP**: the API measures ~168MB against a 512MB
+ceiling. Two caveats specific to Free rather than to Deevi:
+
+- Free instances spin down after ~15 minutes idle, so the first request afterwards pays a
+  cold start. The health check keeps it warm only while traffic exists.
+- The background worker runs in-process, so while the instance is spun down nothing sweeps
+  expired job posts or retries queued email. At MVP volume that is a delay, not data loss:
+  the queue is a Postgres table and work resumes on the next boot. Starter (same 512MB, no
+  spin-down) removes both caveats.
+
+Move the worker to its own service (same build, `QUEUE_WORKER_ENABLED=false` on the API)
+when job throughput justifies it, not before.
+
+### Before going live
+
+Set `NODE_ENV=production` (this also refuses to load the mock OAuth adapter), replace
+`CORS_ORIGINS=*` with explicit origins, set `REDIS_URL` so rate limiting is shared once
+you run more than one instance, and rotate the Supabase keys that were committed to this
 repository during development.

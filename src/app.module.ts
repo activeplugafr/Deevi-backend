@@ -38,13 +38,17 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
   imports: [
     ConfigModule.forRoot({ isGlobal: true, cache: true }),
 
-    // Distributed tracing, auto-correlated logs, request/job metrics, error
-    // telemetry, alarms, and more. Sign up at https://observe.nestjs.com
-    ObserveModule.forRoot({
-      appKey: process.env.OBSERVE_APP_KEY ?? 'YOUR_APP_KEY',
-      appSecret: process.env.OBSERVE_APP_SECRET ?? 'YOUR_APP_SECRET',
-      serviceId: 'deevi-backend',
-    }),
+    // Distributed tracing, auto-correlated logs, request/job metrics and error
+    // telemetry (https://observe.nestjs.com). Only mounted when real
+    // credentials are configured: running an agent on placeholder keys costs
+    // memory and emits failing calls for telemetry nobody can read.
+    ...(loadConfiguration().observabilityEnabled
+      ? [ObserveModule.forRoot({
+          appKey: process.env.OBSERVE_APP_KEY!,
+          appSecret: process.env.OBSERVE_APP_SECRET!,
+          serviceId: 'deevi-backend',
+        })]
+      : []),
 
     SupabaseModule,
     CacheModule,

@@ -70,23 +70,34 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
-  const document = buildSwaggerDocument(app, config);
-  SwaggerModule.setup(`${config.apiPrefix}/docs`, app, document, {
-    swaggerOptions: { persistAuthorization: true, tagsSorter: 'alpha', operationsSorter: 'alpha' },
-    customSiteTitle: 'Deevi API',
-  });
+  // The document is only built when it will actually be served or exported;
+  // constructing it costs time and holds the whole OpenAPI tree in memory.
+  if (config.swaggerEnabled || process.env.EXPORT_OPENAPI) {
+    const document = buildSwaggerDocument(app, config);
 
-  if (process.env.EXPORT_OPENAPI) {
-    writeFileSync(process.env.EXPORT_OPENAPI, JSON.stringify(document, null, 2));
-    logger.log(`OpenAPI written to ${process.env.EXPORT_OPENAPI}`);
-    await app.close();
-    return;
+    if (config.swaggerEnabled) {
+      SwaggerModule.setup(`${config.apiPrefix}/docs`, app, document, {
+        swaggerOptions: { persistAuthorization: true, tagsSorter: 'alpha', operationsSorter: 'alpha' },
+        customSiteTitle: 'Deevi API',
+      });
+    }
+
+    if (process.env.EXPORT_OPENAPI) {
+      writeFileSync(process.env.EXPORT_OPENAPI, JSON.stringify(document, null, 2));
+      logger.log(`OpenAPI written to ${process.env.EXPORT_OPENAPI}`);
+      await app.close();
+      return;
+    }
   }
 
-  await app.listen(config.port);
+  await app.listen(config.port, '0.0.0.0');
 
   logger.log(`Deevi API listening on http://localhost:${config.port}/${config.apiPrefix}`);
-  logger.log(`Swagger UI at http://localhost:${config.port}/${config.apiPrefix}/docs`);
+  if (config.swaggerEnabled) {
+    logger.log(`Swagger UI at http://localhost:${config.port}/${config.apiPrefix}/docs`);
+  } else {
+    logger.log('Swagger is disabled (set SWAGGER_ENABLED=true to serve it here)');
+  }
   if (!config.supabase.configured) logger.error('Supabase is NOT configured -- most endpoints will fail.');
   if (!config.google.configured) logger.warn('Google OAuth is mocked (no GOOGLE_CLIENT_ID).');
   if (!config.email.configured) logger.warn('Email provider is mocked (no EMAIL_API_KEY).');
