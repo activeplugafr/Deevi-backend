@@ -17,6 +17,13 @@ async function bootstrap() {
   const config = loadConfiguration();
   const logger = new Logger('Bootstrap');
 
+  // Diagnostic: log critical configuration state
+  if (!config.supabase.configured) {
+    logger.error('CRITICAL: Supabase is NOT configured. Set SUPABASE_URL and SUPABASE_SECRET_KEY.');
+    logger.error(`  SUPABASE_URL: ${process.env.SUPABASE_URL ? '(set)' : 'MISSING'}`);
+    logger.error(`  SUPABASE_SECRET_KEY: ${process.env.SUPABASE_SECRET_KEY ? '(set)' : 'MISSING'}`);
+  }
+
   const app = await NestFactory.create(AppModule, {
     instrument: ObserveInstrument,
     bufferLogs: false,
@@ -90,7 +97,15 @@ async function bootstrap() {
     }
   }
 
+  // Set a startup timeout to catch hangs early. On Render, the health check
+  // runs after ~30s; if we don't bind the port by then, the instance fails.
+  const startupTimeout = setTimeout(() => {
+    logger.error('CRITICAL: Startup timeout after 25s -- app did not call listen()');
+    process.exit(1);
+  }, 25000);
+
   await app.listen(config.port, '0.0.0.0');
+  clearTimeout(startupTimeout);
 
   logger.log(`Deevi API listening on http://localhost:${config.port}/${config.apiPrefix}`);
   if (config.swaggerEnabled) {
