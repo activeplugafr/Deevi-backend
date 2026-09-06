@@ -13,9 +13,24 @@ import { RolesGuard } from './auth/guards/roles.guard.js';
 import { RateLimitGuard } from './common/guards/rate-limit.guard.js';
 import { buildSwaggerDocument } from './swagger.js';
 
+// Memory diagnostics for debugging Render OOM issues
+const logMemory = (label: string) => {
+  const m = process.memoryUsage();
+  console.log(
+    `[${label}] PID=${process.pid} RSS=${(m.rss / 1024 / 1024).toFixed(1)}MB ` +
+    `heap=${(m.heapUsed / 1024 / 1024).toFixed(1)}/${(m.heapTotal / 1024 / 1024).toFixed(1)}MB ` +
+    `external=${(m.external / 1024 / 1024).toFixed(1)}MB buffers=${(m.arrayBuffers / 1024 / 1024).toFixed(1)}MB`,
+  );
+};
+
+// Log memory at startup
+logMemory('PROCESS_START');
+
 async function bootstrap() {
   const config = loadConfiguration();
   const logger = new Logger('Bootstrap');
+
+  logMemory('CONFIG_LOADED');
 
   // Diagnostic: log critical configuration state
   if (!config.supabase.configured) {
@@ -28,6 +43,8 @@ async function bootstrap() {
     instrument: ObserveInstrument,
     bufferLogs: false,
   });
+
+  logMemory('NEST_APP_CREATED');
 
   // Webhook signature verification needs the exact bytes received, so the
   // raw body is stashed before JSON parsing rewrites it.
@@ -97,15 +114,20 @@ async function bootstrap() {
     }
   }
 
+  logMemory('BEFORE_PORT_BIND');
+
   // Set a startup timeout to catch hangs early. On Render, the health check
   // runs after ~30s; if we don't bind the port by then, the instance fails.
   const startupTimeout = setTimeout(() => {
     logger.error('CRITICAL: Startup timeout after 25s -- app did not call listen()');
+    logMemory('STARTUP_TIMEOUT');
     process.exit(1);
   }, 25000);
 
   await app.listen(config.port, '0.0.0.0');
   clearTimeout(startupTimeout);
+
+  logMemory('LISTENING');
 
   logger.log(`Deevi API listening on http://localhost:${config.port}/${config.apiPrefix}`);
   if (config.swaggerEnabled) {
@@ -118,6 +140,11 @@ async function bootstrap() {
   if (!config.email.configured) logger.warn('Email provider is mocked (no EMAIL_API_KEY).');
   if (!config.payments.configured) logger.warn('Payment provider is mocked (no PAYMENT_SECRET_KEY).');
   if (!config.redis.configured) logger.warn('Redis is not configured; using the in-memory cache fallback.');
+
+  // Periodic memory logging for diagnostics
+  setInterval(() => {
+    logMemory('PERIODIC_CHECK');
+  }, 30000);
 }
 
 await bootstrap();
