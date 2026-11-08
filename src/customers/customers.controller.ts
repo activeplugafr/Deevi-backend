@@ -81,7 +81,7 @@ export class CustomersController {
     return this.locations.remove(user.id, id);
   }
 
-  @Get()
+  @Get('artisans')
   @ApiOperation({ summary: 'List artisans' })
   async listArtisans(
     @Query() query: CustomerArtisansQueryDto,
