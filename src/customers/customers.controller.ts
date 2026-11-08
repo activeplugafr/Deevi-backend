@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CustomersService } from './customers.service.js';
 import { LocationsService } from './locations.service.js';
@@ -8,6 +8,7 @@ import { CustomerProfileDto, UpdateCustomerProfileDto } from './dto/customer.dto
 import { CreateLocationDto, LocationDto, UpdateLocationDto } from './dto/location.dto.js';
 import type { AuthUser } from '../common/types/auth-user.js';
 import { ArtisansService } from './artisans/artisans.service.js';
+import { CustomerArtisansQueryDto } from './dto/artisans.dto.js';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
@@ -78,6 +79,14 @@ export class CustomersController {
   @ApiOkResponse({ type: MessageResponseDto })
   removeLocation(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.locations.remove(user.id, id);
+  }
+
+  @Get()
+  @ApiOperation({ summary: 'List artisans' })
+  async listArtisans(
+    @Query() query: CustomerArtisansQueryDto,
+  ) {
+    return this.artisansService.listArtisans(query);
   }
 
   @Post('saved/:artisanId')
