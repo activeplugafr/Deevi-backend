@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CustomersService } from './customers.service.js';
 import { LocationsService } from './locations.service.js';
@@ -7,6 +7,7 @@ import { MessageResponseDto } from '../common/dto/api-error.dto.js';
 import { CustomerProfileDto, UpdateCustomerProfileDto } from './dto/customer.dto.js';
 import { CreateLocationDto, LocationDto, UpdateLocationDto } from './dto/location.dto.js';
 import type { AuthUser } from '../common/types/auth-user.js';
+import { ArtisansService } from './artisans/artisans.service.js';
 
 @ApiTags('Customers')
 @ApiBearerAuth()
@@ -15,7 +16,8 @@ export class CustomersController {
   constructor(
     private readonly customers: CustomersService,
     private readonly locations: LocationsService,
-  ) {}
+    private readonly artisansService: ArtisansService,
+  ) { }
 
   @Get('me')
   @ApiOperation({
@@ -76,5 +78,51 @@ export class CustomersController {
   @ApiOkResponse({ type: MessageResponseDto })
   removeLocation(@CurrentUser() user: AuthUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.locations.remove(user.id, id);
+  }
+
+  @Post('saved/:artisanId')
+  async saveArtisan(
+    @Req() req: any,
+    @Param('artisanId') artisanId: string,
+  ) {
+    const customerId = req.user.id;
+
+    return this.artisansService.saveArtisan(
+      customerId,
+      artisanId,
+    );
+  }
+
+  @Get('saved')
+  async getSavedArtisans(@Req() req: any) {
+    const customerId = req.user.id;
+
+    return this.artisansService.getSavedArtisans(customerId);
+  }
+
+  @Delete('saved/:artisanId')
+  async unsaveArtisan(
+    @Req() req: any,
+    @Param('artisanId') artisanId: string,
+  ) {
+    const customerId = req.user.id;
+
+    return this.artisansService.unsaveArtisan(
+      customerId,
+      artisanId,
+    );
+  }
+
+  @Get(':artisanId/saved-status')
+  async isArtisanSaved(
+    @Req() req: any,
+    @Param('artisanId') artisanId: string,
+  ) {
+    const customerId = req.user.id;
+
+    return this.artisansService.isArtisanSaved(
+      customerId,
+      artisanId,
+    );
   }
 }

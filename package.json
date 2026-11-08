@@ -40,7 +40,8 @@
     "ioredis": "^6.0.0",
     "jose": "^6.2.10",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "supabase": "^3.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
