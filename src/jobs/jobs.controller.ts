@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, Req, UploadedFiles, UseInterceptors } from '@nestjs/common';
 import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JobsService } from './jobs.service.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
@@ -11,12 +11,21 @@ import {
   CancelJobDto, JobPostSummaryDto, MyJobsQueryDto, UpdateJobPostDto,
 } from './dto/job-query.dto.js';
 import type { AuthUser } from '../common/types/auth-user.js';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import type { Request } from 'express';
+
+export interface UploadedMediaFile {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
 
 @ApiTags('Jobs')
 @ApiBearerAuth()
 @Controller('jobs')
 export class JobsController {
-  constructor(private readonly jobs: JobsService) {}
+  constructor(private readonly jobs: JobsService) { }
 
   @Post()
   @RateLimit({ limit: 20, windowSeconds: 3600, bucket: 'job-create' })
@@ -26,8 +35,30 @@ export class JobsController {
       'Creates and (by default) publishes a job post. The job carries its own service location, which is ' +
       'independent of the customer profile address. Set `publish: false` to save a draft.',
   })
-  create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobPostDto) {
-    return this.jobs.create(user, dto);
+  // create(@CurrentUser() user: AuthUser, @Body() dto: CreateJobPostDto) {
+  //   return this.jobs.create(user, dto);
+  // }
+
+
+
+  @Post()
+  @UseInterceptors(
+    FilesInterceptor('media', 5, {
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB per image
+      },
+    }),
+  )
+  async create(
+    @Req() req: Request & { user: AuthUser },
+    @Body() dto: CreateJobPostDto,
+    @UploadedFiles() files: UploadedMediaFile[],
+  ) {
+    return this.jobs.create(
+      req.user,
+      dto,
+      files ?? [],
+    );
   }
 
   @Get('mine')
@@ -119,4 +150,6 @@ export class JobsController {
   ) {
     return this.jobs.removeMedia(user, id, mediaId);
   }
+
+
 }

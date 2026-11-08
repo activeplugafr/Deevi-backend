@@ -2,24 +2,58 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsNumber,
-  IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, ValidateNested,
+  IsOptional, IsString, IsUUID, Max, MaxLength, Min, MinLength, ValidateNested,
 } from 'class-validator';
 import { ServiceLocationDto } from '../../common/dto/location.dto.js';
 
 export const URGENCY_LEVELS = ['LOW', 'NORMAL', 'HIGH', 'EMERGENCY'] as const;
 export const BUDGET_TYPES = ['FIXED', 'HOURLY', 'DAILY', 'NEGOTIABLE'] as const;
 
-export class JobMediaInputDto {
-  @ApiProperty({ description: 'Storage path from POST /storage/upload-ticket (job-media bucket)' })
-  @IsString() @IsNotEmpty() @MaxLength(400)
-  storagePath: string;
+// export class UploadedMediaFile {
+//   @ApiProperty({ description: 'Storage path from POST /storage/upload-ticket (job-media bucket)' })
+//   @IsString() @IsNotEmpty() @MaxLength(400)
+//   storagePath: string;
 
-  @ApiPropertyOptional({ enum: ['IMAGE', 'VIDEO'], default: 'IMAGE' })
-  @IsOptional() @IsIn(['IMAGE', 'VIDEO'])
-  mediaType?: 'IMAGE' | 'VIDEO';
+//   @ApiPropertyOptional({ enum: ['IMAGE', 'VIDEO'], default: 'IMAGE' })
+//   @IsOptional() @IsIn(['IMAGE', 'VIDEO'])
+//   mediaType?: 'IMAGE' | 'VIDEO';
 
-  @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mimeType?: string;
-  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(0) sortOrder?: number;
+//   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(100) mimeType?: string;
+//   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(0) sortOrder?: number;
+// }
+
+
+export class UploadedMediaFile {
+  @ApiProperty({
+    description: 'Original name of the uploaded file',
+    example: 'kitchen-sink.jpg',
+  })
+  @IsString()
+  @IsNotEmpty()
+  originalname: string;
+
+  @ApiProperty({
+    description: 'MIME type of the uploaded file',
+    example: 'image/jpeg',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(100)
+  mimetype: string;
+
+  @ApiProperty({
+    description: 'File size in bytes',
+    example: 2048000,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(5 * 1024 * 1024)
+  size: number;
+
+  @ApiProperty({
+    description: 'Uploaded file contents as a Node.js Buffer',
+  })
+  buffer: Buffer;
 }
 
 export class CreateJobPostDto {
@@ -71,6 +105,11 @@ export class CreateJobPostDto {
   @IsOptional() @IsIn(BUDGET_TYPES)
   budgetType?: (typeof BUDGET_TYPES)[number];
 
+  @ApiPropertyOptional({ example: 15000, description: 'In NGN' })
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0)
+  transport_fare?: number;
+
+
   @ApiPropertyOptional({ format: 'date-time', description: 'When the customer would like work to start' })
   @IsOptional() @IsDateString()
   preferredStartAt?: string;
@@ -89,9 +128,9 @@ export class CreateJobPostDto {
 
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(2000) additionalNotes?: string;
 
-  @ApiPropertyOptional({ type: [JobMediaInputDto], description: 'Photos or video of the problem' })
-  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => JobMediaInputDto)
-  media?: JobMediaInputDto[];
+  @ApiPropertyOptional({ type: [UploadedMediaFile], description: 'Photos or video of the problem' })
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => UploadedMediaFile)
+  media?: UploadedMediaFile[];
 
   @ApiPropertyOptional({
     default: true,

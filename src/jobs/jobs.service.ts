@@ -19,19 +19,21 @@ import {
 } from './job-lifecycle.js';
 import type { ServiceLocationDto } from '../common/dto/location.dto.js';
 import type { AuthUser } from '../common/types/auth-user.js';
-import type { CreateJobPostDto, JobMediaInputDto } from './dto/create-job.dto.js';
+import type { CreateJobPostDto } from './dto/create-job.dto.js';
 import type { MyJobsQueryDto, UpdateJobPostDto } from './dto/job-query.dto.js';
+import { UploadedMediaFile } from './jobs.controller.js';
+import { CloudinaryService } from '../../cloudinary.service.js';
 
 /** Fields the owning customer sees, including the private location. */
 const OWNER_JOB_COLUMNS = [
   'id', 'customer_id', 'category_id', 'service_id', 'sub_service_id', 'title', 'description',
-  'status', 'urgency', 'budget_min', 'budget_max', 'budget_type', 'currency',
+  'status', 'urgency', 'budget_min', 'budget_max', 'budget_type', 'transport_fare', 'currency',
   'preferred_start_at', 'preferred_end_at', 'preferred_time_notes', 'is_flexible_timing',
   'saved_location_id', 'address_line', 'neighbourhood', 'city', 'state', 'country',
   'latitude', 'longitude', 'location_notes', 'location_source', 'additional_notes',
   'selected_application_id', 'selected_artisan_id', 'applications_count', 'shortlisted_count',
   'views_count', 'published_at', 'expires_at', 'completed_at', 'cancelled_at',
-  'cancellation_reason', 'created_at', 'updated_at',
+  'cancellation_reason', 'created_at', 'updated_at'
 ].join(', ');
 
 /**
@@ -57,6 +59,7 @@ const LIST_JOB_COLUMNS = [
 @Injectable()
 export class JobsService {
   private readonly config = loadConfiguration();
+  private readonly cloudinary: CloudinaryService;
 
   constructor(
     private readonly db: DatabaseService,
@@ -65,7 +68,7 @@ export class JobsService {
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
     private readonly queue: QueueService,
-  ) {}
+  ) { }
 
   /**
    * Resolves the job's service location.
@@ -123,27 +126,50 @@ export class JobsService {
     return resolved;
   }
 
-  private async attachMedia(jobPostId: string, ownerId: string, media: JobMediaInputDto[]) {
-    if (!media.length) return;
+  // private async attachMedia(jobPostId: string, ownerId: string, media: JobMediaInputDto[]) {
+  //   if (!media.length) return;
 
-    if (media.length > this.config.jobs.maxMediaPerJob) {
-      throw new DomainException(
-        'TOO_MANY_MEDIA',
-        `A job post can carry at most ${this.config.jobs.maxMediaPerJob} images or videos`,
+  //   if (media.length > this.config.jobs.maxMediaPerJob) {
+  //     throw new DomainException(
+  //       'TOO_MANY_MEDIA',
+  //       `A job post can carry at most ${this.config.jobs.maxMediaPerJob} images or videos`,
+  //     );
+  //   }
+
+  //   for (const item of media) this.storage.assertOwnership(item.storagePath, ownerId);
+
+  //   await this.db.insertMany('job_media', media.map((item, index) => ({
+  //     job_post_id: jobPostId,
+  //     media_type: item.mediaType ?? 'IMAGE',
+  //     storage_path: item.storagePath,
+  //     public_url: this.storage.getPublicUrl(StorageBucket.JOB_MEDIA, item.storagePath),
+  //     mime_type: item.mimeType ?? null,
+  //     sort_order: item.sortOrder ?? index,
+  //   })), 'id');
+  // }
+
+
+
+  private async attachMedia(jobPostId: string, ownerId: string, files: UploadedMediaFile[]) {
+    for (const [index, file] of files.entries()) {
+      const uploaded = await this.cloudinary.uploadImage(
+        file,
+        `deevi/job-posts/${jobPostId}`,
       );
+
+
+
+      await this.db.insertOne('job_media', {
+        job_post_id: jobPostId,
+        media_type: 'IMAGE',
+        storage_path: uploaded.storagePath,
+        public_url: uploaded.secure_url,
+        mime_type: file.mimetype ?? null,
+        sort_order: index,
+      }, 'id');
     }
-
-    for (const item of media) this.storage.assertOwnership(item.storagePath, ownerId);
-
-    await this.db.insertMany('job_media', media.map((item, index) => ({
-      job_post_id: jobPostId,
-      media_type: item.mediaType ?? 'IMAGE',
-      storage_path: item.storagePath,
-      public_url: this.storage.getPublicUrl(StorageBucket.JOB_MEDIA, item.storagePath),
-      mime_type: item.mimeType ?? null,
-      sort_order: item.sortOrder ?? index,
-    })), 'id');
   }
+
 
   private async recordStatusChange(
     jobPostId: string,
@@ -168,7 +194,12 @@ export class JobsService {
 
   /* ------------------------------ create ------------------------------ */
 
-  async create(user: AuthUser, dto: CreateJobPostDto) {
+  // async create(user: AuthUser, dto: CreateJobPostDto) 
+  async create(
+    user: AuthUser,
+    dto: CreateJobPostDto,
+    files: UploadedMediaFile[] = [],
+  ) {
     await this.customers.ensureProfile(user);
 
     const service = await this.catalogue.resolveServiceReference(dto.serviceId, dto.subServiceId);
@@ -211,6 +242,7 @@ export class JobsService {
       budget_min: dto.budgetMin ?? null,
       budget_max: dto.budgetMax ?? null,
       budget_type: dto.budgetType ?? 'NEGOTIABLE',
+      transport_fare: dto.transport_fare ?? null,
       preferred_start_at: dto.preferredStartAt ?? null,
       preferred_end_at: dto.preferredEndAt ?? null,
       preferred_time_notes: dto.preferredTimeNotes ?? null,
@@ -221,7 +253,8 @@ export class JobsService {
       ...location,
     }, OWNER_JOB_COLUMNS);
 
-    await this.attachMedia(jobPost.id, user.id, dto.media ?? []);
+    // await this.attachMedia(jobPost.id, user.id, dto.media ?? []);
+    await this.attachMedia(jobPost.id, user.id, files);
     await this.db.from('customer_profiles')
       .update({ jobs_posted_count: (await this.db.count('job_posts', { customer_id: user.id })) })
       .eq('user_id', user.id);
@@ -279,7 +312,7 @@ export class JobsService {
     let builder = this.db
       .select(
         'jobs',
-        'id, job_post_id, application_id, customer_id, status, agreed_price, currency, ' +
+        'id, job_post_id, application_id, customer_id, status, agreed_price, currency, transport_fare' +
         'started_at, completed_at, created_at, job_posts(id, title, city, neighbourhood, urgency, service_id)',
       )
       .eq('artisan_id', artisanId);
@@ -455,7 +488,7 @@ export class JobsService {
     return updated;
   }
 
-  async addMedia(user: AuthUser, jobPostId: string, media: JobMediaInputDto[]) {
+  async addMedia(user: AuthUser, jobPostId: string, media: UploadedMediaFile[]) {
     const post = await this.requireOwnedPost(user, jobPostId);
     const existing = await this.db.count('job_media', { job_post_id: jobPostId });
 
