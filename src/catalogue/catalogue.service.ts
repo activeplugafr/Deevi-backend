@@ -4,7 +4,7 @@ import { CacheService } from '../cache/cache.service.js';
 import { CacheKeys, CacheTtl } from '../cache/cache-keys.js';
 import { ConflictError, NotFoundError } from '../common/errors/domain.exception.js';
 import { type Paginated } from '../common/dto/pagination.dto.js';
-import type { CatalogueQueryDto, ServiceQueryDto } from './dto/catalogue.dto.js';
+import { JOB_SEARCH_SUGGESTIONS, type CatalogueQueryDto, type ServiceQueryDto } from './dto/catalogue.dto.js';
 
 const CATEGORY_COLUMNS = 'id, name, slug, description, icon_url, colour_hex, group_key, sort_order, is_active';
 const SERVICE_COLUMNS =
@@ -24,7 +24,7 @@ export class CatalogueService {
   constructor(
     private readonly db: DatabaseService,
     private readonly cache: CacheService,
-  ) {}
+  ) { }
 
   /* --------------------------- public reads --------------------------- */
 
@@ -55,6 +55,23 @@ export class CatalogueService {
       }));
     });
   }
+
+
+  /**
+   * Returns predefined keywords for job search autocomplete.
+   */
+  getJobSearchSuggestions(q?: string) {
+    const suggestions = q?.trim()
+      ? JOB_SEARCH_SUGGESTIONS.filter(keyword =>
+        keyword.toLowerCase().includes(q.trim().toLowerCase()),
+      )
+      : [...JOB_SEARCH_SUGGESTIONS];
+
+    return {
+      suggestions: suggestions.slice(0, 10),
+    };
+  }
+
 
   async listCategories(query: CatalogueQueryDto): Promise<Paginated<any>> {
     let builder = this.db.select('service_categories', CATEGORY_COLUMNS).is('deleted_at', null);

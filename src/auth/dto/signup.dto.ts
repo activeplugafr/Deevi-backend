@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
-  IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, Matches, MaxLength, MinLength,
+  IsEmail, IsIn, IsNotEmpty, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength,
 } from 'class-validator';
 
 export const SIGNUP_ROLES = ['CUSTOMER', 'ARTISAN'] as const;
@@ -36,6 +36,10 @@ export class SignupDto {
   @IsNotEmpty()
   @MaxLength(80)
   lastName: string;
+
+  @IsOptional()
+  @IsUrl()
+  avatarUrl?: string;
 
   @ApiPropertyOptional({ example: '+2348012345678' })
   @IsOptional()

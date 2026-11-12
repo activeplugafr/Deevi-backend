@@ -10,6 +10,38 @@ export const CATEGORY_GROUPS = ['HOME_REPAIR', 'PERSONAL', 'MOBILITY', 'GENERAL'
 
 const SLUG_RULE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+
+
+export const JOB_SEARCH_SUGGESTIONS = [
+  'Plumbing',
+  'Electrical repairs',
+  'House cleaning',
+  'Deep cleaning',
+  'Painting',
+  'Carpentry',
+  'Furniture repair',
+  'AC repairs',
+  'Generator repairs',
+  'Laundry services',
+  'Gardening',
+  'Pest control',
+  'Roof repairs',
+  'Tiling',
+  'POP installation',
+  'Welding',
+  'Interior decoration',
+  'Moving services',
+  'Appliance repairs',
+  'CCTV installation',
+  'Solar installation',
+  'Phone repairs',
+  'Computer repairs',
+  'Auto repairs',
+  'Beauty services',
+  'Photography',
+] as const;
+
+
 export class ServiceCategoryDto {
   @ApiProperty({ format: 'uuid' }) id: string;
   @ApiProperty({ example: 'Plumbing' }) name: string;
@@ -176,3 +208,5 @@ export class UpdateSubServiceDto {
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(0) sortOrder?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isActive?: boolean;
 }
+
+

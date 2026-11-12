@@ -11,7 +11,7 @@ import {
 @ApiTags('Catalogue')
 @Controller('catalogue')
 export class CatalogueController {
-  constructor(private readonly catalogue: CatalogueService) {}
+  constructor(private readonly catalogue: CatalogueService) { }
 
   @Public()
   @Get('tree')
@@ -41,6 +41,28 @@ export class CatalogueController {
   @ApiOkResponse({ type: ServiceCategoryDto })
   getCategory(@Param('idOrSlug') idOrSlug: string) {
     return this.catalogue.getCategory(idOrSlug);
+  }
+
+  @Public()
+  @Get('search-suggestions')
+  @ApiOperation({
+    summary: 'Get job search keyword suggestions',
+    description:
+      'Returns predefined job search keywords. Optionally filters suggestions by a search query.',
+  })
+  @ApiOkResponse({
+    schema: {
+      example: {
+        suggestions: [
+          'Plumbing',
+          'Electrical repairs',
+          'House cleaning',
+        ],
+      },
+    },
+  })
+  getJobSearchSuggestions(@Query('q') q?: string) {
+    return this.catalogue.getJobSearchSuggestions(q);
   }
 
   @Public()

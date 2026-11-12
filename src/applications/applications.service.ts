@@ -33,7 +33,7 @@ export class ApplicationsService {
     private readonly db: DatabaseService,
     private readonly artisans: ArtisansService,
     private readonly notifications: NotificationsService,
-  ) {}
+  ) { }
 
   /* ----------------------------- artisan side ---------------------------- */
 
@@ -115,21 +115,47 @@ export class ApplicationsService {
     return application;
   }
 
+  // async listMine(user: AuthUser, query: ApplicationsQueryDto) {
+  //   const artisanId = this.artisans.requireArtisanId(user);
+
+  //   let builder = this.db
+  //     .select(
+  //       'job_applications',
+  //       `${APPLICATION_COLUMNS}, job_posts(id, title, status, city, neighbourhood, urgency, budget_min, budget_max, currency, service_id)`,
+  //     )
+  //     .eq('artisan_id', artisanId);
+
+  //   if (query.status) builder = builder.eq('status', query.status);
+  //   builder = builder.order('created_at', { ascending: false });
+
+  //   return this.db.paginate(builder, query.page, query.limit, 'applications:mine');
+  // }
+
+
   async listMine(user: AuthUser, query: ApplicationsQueryDto) {
     const artisanId = this.artisans.requireArtisanId(user);
 
     let builder = this.db
       .select(
         'job_applications',
-        `${APPLICATION_COLUMNS}, job_posts(id, title, status, city, neighbourhood, urgency, budget_min, budget_max, currency, service_id)`,
+        `${APPLICATION_COLUMNS}, job_posts!job_applications_job_post_id_fkey(id, title, status, city, neighbourhood, urgency, budget_min, budget_max, currency, service_id)`,
       )
       .eq('artisan_id', artisanId);
 
-    if (query.status) builder = builder.eq('status', query.status);
+    if (query.status) {
+      builder = builder.eq('status', query.status);
+    }
+
     builder = builder.order('created_at', { ascending: false });
 
-    return this.db.paginate(builder, query.page, query.limit, 'applications:mine');
+    return this.db.paginate(
+      builder,
+      query.page,
+      query.limit,
+      'applications:mine',
+    );
   }
+
 
   /** Artisans may revise their bid only while it is still in play. */
   async update(user: AuthUser, applicationId: string, dto: UpdateApplicationDto) {

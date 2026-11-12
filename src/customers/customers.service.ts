@@ -6,7 +6,7 @@ import type { AuthUser } from '../common/types/auth-user.js';
 import { CustomerArtisansQueryDto } from './dto/artisans.dto.js';
 
 const PROFILE_COLUMNS =
-  'id, user_id, default_location_id, jobs_posted_count, jobs_completed_count, rating_average, rating_count, preferred_contact, created_at';
+  'id, user_id, default_location_id, jobs_posted_count, jobs_completed_count, rating_average, rating_count, preferred_contact, created_at, avatar_url';
 
 @Injectable()
 export class CustomersService {
@@ -46,7 +46,7 @@ export class CustomersService {
     };
   }
 
-  async updateMyProfile(user: AuthUser, values: { defaultLocationId?: string; preferredContact?: string }) {
+  async updateMyProfile(user: AuthUser, values: { defaultLocationId?: string; preferredContact?: string; avatarUrl?: string; }) {
     await this.ensureProfile(user);
 
     if (values.defaultLocationId) {
@@ -59,6 +59,7 @@ export class CustomersService {
     return this.db.updateOne('customer_profiles', { user_id: user.id }, compact({
       default_location_id: values.defaultLocationId,
       preferred_contact: values.preferredContact,
+      avatar_url: values.avatarUrl,
     }), PROFILE_COLUMNS, 'Customer profile');
   }
 
@@ -86,7 +87,7 @@ export class CustomersService {
   async fetchArtisan(artisanId: string) {
     const artisan = await this.db.one(
       'artisan_profiles',
-      'id, user_id, headline, business_name, verification_status, availability_status, base_city, ' +
+      'id, user_id, headline, business_name, verification_status, availability_status, base_city, avatar_url,' +
       'years_of_experience, rating_average, rating_count, jobs_completed_count, is_premium, ' +
       'profile_completion, approved_at, created_at, users(id, first_name, last_name, email, phone, status)',
       { id: artisanId }

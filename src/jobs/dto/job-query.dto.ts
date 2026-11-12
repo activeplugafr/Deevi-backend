@@ -36,6 +36,8 @@ export class UpdateJobPostDto {
 
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) budgetMin?: number;
   @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) budgetMax?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsNumber() @Min(0) transportFare?: number;
+
 
   @ApiPropertyOptional({ enum: BUDGET_TYPES })
   @IsOptional() @IsIn(BUDGET_TYPES) budgetType?: (typeof BUDGET_TYPES)[number];

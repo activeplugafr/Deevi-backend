@@ -43,7 +43,7 @@ const OWNER_JOB_COLUMNS = [
  */
 const PUBLIC_JOB_COLUMNS = [
   'id', 'customer_id', 'category_id', 'service_id', 'sub_service_id', 'title', 'description',
-  'status', 'urgency', 'budget_min', 'budget_max', 'budget_type', 'currency',
+  'status', 'urgency', 'budget_min', 'budget_max', 'budget_type', 'currency', 'transport_fare',
   'preferred_start_at', 'preferred_time_notes', 'is_flexible_timing',
   'neighbourhood', 'city', 'state', 'applications_count',
   'published_at', 'expires_at', 'created_at',
@@ -312,7 +312,7 @@ export class JobsService {
     let builder = this.db
       .select(
         'jobs',
-        'id, job_post_id, application_id, customer_id, status, agreed_price, currency, transport_fare' +
+        'id, job_post_id, application_id, customer_id, status, agreed_price, currency, transport_fare,' +
         'started_at, completed_at, created_at, job_posts(id, title, city, neighbourhood, urgency, service_id)',
       )
       .eq('artisan_id', artisanId);
@@ -434,6 +434,7 @@ export class JobsService {
       budget_type: dto.budgetType,
       preferred_start_at: dto.preferredStartAt,
       preferred_time_notes: dto.preferredTimeNotes,
+      transport_fare: dto.transportFare,
       additional_notes: dto.additionalNotes,
     }), OWNER_JOB_COLUMNS, 'Job post');
   }

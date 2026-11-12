@@ -40,7 +40,7 @@ export class AuthService {
     private readonly db: DatabaseService,
     private readonly authContext: AuthContextService,
     @Inject(OAUTH_PROVIDERS) private readonly oauthProviders: Map<string, OAuthProvider>,
-  ) {}
+  ) { }
 
   /* ---------------------------------------------------------------- */
   /* Email + password                                                  */
@@ -76,7 +76,7 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone ?? null,
-        avatarUrl: null,
+        avatarUrl: dto.avatarUrl ?? null,
         emailVerified: Boolean(authData.user.email_confirmed_at),
       },
       dto.role,

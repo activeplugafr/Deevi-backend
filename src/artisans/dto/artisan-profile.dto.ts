@@ -2,7 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray, IsIn, IsInt, IsLatitude, IsLongitude, IsNumber, IsOptional,
-  IsString, IsUUID, Max, MaxLength, Min, ValidateNested,
+  IsString, IsUrl, IsUUID, Max, MaxLength, Min, ValidateNested,
 } from 'class-validator';
 
 export const AVAILABILITY_STATUSES = ['AVAILABLE', 'BUSY', 'UNAVAILABLE'] as const;
@@ -40,6 +40,10 @@ export class UpdateArtisanProfileDto {
   @ApiPropertyOptional({ example: 3.3481 })
   @IsOptional() @Type(() => Number) @IsLongitude()
   baseLongitude?: number;
+
+  @IsOptional()
+  @IsUrl()
+  avatarUrl?: string;
 
   @ApiPropertyOptional({
     example: 15, minimum: 1, maximum: 200,

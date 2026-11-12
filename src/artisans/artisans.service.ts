@@ -18,7 +18,7 @@ import type {
 } from './dto/artisan-onboarding.dto.js';
 
 export const ARTISAN_PROFILE_COLUMNS = [
-  'id', 'user_id', 'headline', 'bio', 'business_name', 'years_of_experience',
+  'id', 'user_id', 'headline', 'bio', 'business_name', 'years_of_experience', 'avatar_url',
   'verification_status', 'availability_status', 'base_city', 'base_state',
   'base_latitude', 'base_longitude', 'max_travel_km', 'rating_average', 'rating_count',
   'jobs_completed_count', 'applications_count', 'acceptance_count', 'response_rate',
@@ -40,7 +40,7 @@ export class ArtisansService {
     private readonly cache: CacheService,
     private readonly storage: StorageService,
     private readonly notifications: NotificationsService,
-  ) {}
+  ) { }
 
   /** Resolves the caller's artisan profile id, or explains how to get one. */
   requireArtisanId(user: AuthUser): string {
@@ -108,6 +108,7 @@ export class ArtisansService {
       max_travel_km: dto.maxTravelKm,
       availability_status: dto.availabilityStatus,
       last_active_at: new Date().toISOString(),
+      avatar_url: dto.avatarUrl,
     }), ARTISAN_PROFILE_COLUMNS, 'Artisan profile');
 
     await this.cache.del(CacheKeys.publicArtisan(artisanId));
