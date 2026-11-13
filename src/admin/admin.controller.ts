@@ -4,7 +4,7 @@ import { AdminService } from './admin.service.js';
 import { AuditService } from '../audit/audit.service.js';
 import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 import { AdminRoles, RequireCapability, Roles } from '../common/decorators/roles.decorator.js';
-import { PaginationQueryDto } from '../common/dto/pagination.dto.js';
+import { AdminApplicationsQueryDto, PaginationQueryDto } from '../common/dto/pagination.dto.js';
 import { MessageResponseDto } from '../common/dto/api-error.dto.js';
 import { SignedUrlDto } from '../storage/dto/storage.dto.js';
 import {
@@ -27,7 +27,7 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly audit: AuditService,
-  ) {}
+  ) { }
 
   @Get('metrics')
   @RequireCapability('metrics:read')
@@ -100,8 +100,8 @@ export class AdminController {
     summary: 'The verification queue',
     description: 'Oldest submission first. Defaults to PENDING and UNDER_REVIEW.',
   })
-  listApplications(@Query() query: PaginationQueryDto, @Query('status') status?: string) {
-    return this.admin.listApplications(status, query.page, query.limit);
+  listApplications(@Query() query: AdminApplicationsQueryDto) {
+    return this.admin.listApplications(query.status, query.page, query.limit);
   }
 
   @Get('artisan-applications/:id')

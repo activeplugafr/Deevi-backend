@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsEnum, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 /**
  * Every list endpoint in Deevi takes these. Feeds are never unbounded:
@@ -76,3 +76,14 @@ export const toRange = (page: number, limit: number): [number, number] => {
   const from = (page - 1) * limit;
   return [from, from + limit - 1];
 };
+
+
+export class AdminApplicationsQueryDto extends PaginationQueryDto {
+  @ApiPropertyOptional({
+    enum: ['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'],
+    description: 'Filter applications by verification status',
+  })
+  @IsOptional()
+  @IsEnum(['PENDING', 'UNDER_REVIEW', 'APPROVED', 'REJECTED'])
+  status?: string;
+}
